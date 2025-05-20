@@ -1,24 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Chat (No Backend)</title>
+  <meta charset="UTF-8" />
+  <title>Dark Chat</title>
   <script src="https://unpkg.com/stream-chat"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
-    body {
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
       background-color: #0f0f0f;
       color: white;
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 100vh;
-      margin: 0;
     }
     #container {
-      max-width: 480px;
       width: 100%;
+      max-width: 400px;
       background: #1c1c1e;
       border-radius: 16px;
       padding: 24px;
@@ -27,7 +28,9 @@
     #startScreen, #chatScreen {
       display: none;
     }
-    .visible { display: block; }
+    .visible {
+      display: block;
+    }
     input, button {
       width: 100%;
       padding: 12px;
@@ -47,7 +50,7 @@
       font-weight: bold;
     }
     #messages {
-      height: 400px;
+      height: 300px;
       overflow-y: auto;
       background: #121212;
       padding: 12px;
@@ -108,38 +111,45 @@
 
     async function startChat(nameOverride) {
       const username = nameOverride || document.getElementById('usernameInput').value.trim();
-      if (!username) return alert("Please enter a name");
+      if (!username) {
+        alert("Please enter a name");
+        return;
+      }
 
-      localStorage.setItem('chat_username', username);
-      userDisplayName.textContent = username;
+      try {
+        localStorage.setItem('chat_username', username);
+        userDisplayName.textContent = username;
 
-      startScreen.classList.remove('visible');
-      chatScreen.classList.add('visible');
+        startScreen.classList.remove('visible');
+        chatScreen.classList.add('visible');
 
-      const devToken = client.devToken(username); // 👈 Development token (NO backend)
+        const devToken = client.devToken(username); // Use dev token (no backend)
+        await client.connectUser({ id: username, name: username }, devToken);
 
-      await client.connectUser({ id: username, name: username }, devToken);
+        const channel = client.channel('messaging', 'general', {
+          name: 'General Chat',
+          members: [username],
+        });
 
-      const channel = client.channel('messaging', 'general', {
-        name: 'General Chat',
-        members: [username],
-      });
+        await channel.watch();
 
-      await channel.watch();
+        channel.on('message.new', event => {
+          displayMessage(event.message);
+        });
 
-      channel.on('message.new', event => {
-        displayMessage(event.message);
-      });
+        const messages = await channel.query({ messages: { limit: 30 } });
+        messages.messages.forEach(displayMessage);
 
-      const messages = await channel.query({ messages: { limit: 30 } });
-      messages.messages.forEach(displayMessage);
-
-      window.sendMessage = async function () {
-        const text = messageInput.value.trim();
-        if (!text) return;
-        await channel.sendMessage({ text });
-        messageInput.value = '';
-      };
+        window.sendMessage = async function () {
+          const text = messageInput.value.trim();
+          if (!text) return;
+          await channel.sendMessage({ text });
+          messageInput.value = '';
+        };
+      } catch (err) {
+        console.error("Stream setup failed:", err);
+        alert("There was a problem starting the chat. Check your API key.");
+      }
     }
 
     function displayMessage(msg) {
