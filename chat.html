@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chat (No Backend)</title>
+  <script src="https://unpkg.com/stream-chat"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+    body {
+      background-color: #0f0f0f;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    #container {
+      max-width: 480px;
+      width: 100%;
+      background: #1c1c1e;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.4);
+    }
+    #startScreen, #chatScreen {
+      display: none;
+    }
+    .visible { display: block; }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+    }
+    input {
+      background: #2c2c2e;
+      color: white;
+    }
+    button {
+      background: #007aff;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #messages {
+      height: 400px;
+      overflow-y: auto;
+      background: #121212;
+      padding: 12px;
+      margin: 16px 0;
+      border-radius: 8px;
+    }
+    .message {
+      background: #2a2a2a;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    .message strong {
+      color: #00b0ff;
+    }
+    #inputArea {
+      display: flex;
+      gap: 8px;
+    }
+    #messageInput {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="startScreen" class="visible">
+      <h2>Enter your name</h2>
+      <input type="text" id="usernameInput" placeholder="e.g. Alice" />
+      <button onclick="startChat()">Start Chatting</button>
+    </div>
+    <div id="chatScreen">
+      <h2>Welcome, <span id="userDisplayName"></span></h2>
+      <div id="messages"></div>
+      <div id="inputArea">
+        <input type="text" id="messageInput" placeholder="Type a message..." />
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const apiKey = 'yxen6jwdcgdx'; // <-- Replace with your Stream API key
+    const savedUsername = localStorage.getItem('chat_username');
+    const startScreen = document.getElementById('startScreen');
+    const chatScreen = document.getElementById('chatScreen');
+    const userDisplayName = document.getElementById('userDisplayName');
+    const messageInput = document.getElementById('messageInput');
+    const messagesDiv = document.getElementById('messages');
+
+    const client = StreamChat.StreamChat.getInstance(apiKey);
+
+    if (savedUsername) {
+      startChat(savedUsername);
+    } else {
+      startScreen.classList.add('visible');
+    }
+
+    async function startChat(nameOverride) {
+      const username = nameOverride || document.getElementById('usernameInput').value.trim();
+      if (!username) return alert("Please enter a name");
+
+      localStorage.setItem('chat_username', username);
+      userDisplayName.textContent = username;
+
+      startScreen.classList.remove('visible');
+      chatScreen.classList.add('visible');
+
+      const devToken = client.devToken(username); // 👈 Development token (NO backend)
+
+      await client.connectUser({ id: username, name: username }, devToken);
+
+      const channel = client.channel('messaging', 'general', {
+        name: 'General Chat',
+        members: [username],
+      });
+
+      await channel.watch();
+
+      channel.on('message.new', event => {
+        displayMessage(event.message);
+      });
+
+      const messages = await channel.query({ messages: { limit: 30 } });
+      messages.messages.forEach(displayMessage);
+
+      window.sendMessage = async function () {
+        const text = messageInput.value.trim();
+        if (!text) return;
+        await channel.sendMessage({ text });
+        messageInput.value = '';
+      };
+    }
+
+    function displayMessage(msg) {
+      const div = document.createElement('div');
+      div.classList.add('message');
+      div.innerHTML = `<strong>${msg.user.name}</strong><br>${msg.text}`;
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+  </script>
+</body>
+</html>
